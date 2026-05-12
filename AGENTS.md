@@ -13,6 +13,12 @@ Each skill is a self-contained folder with a `SKILL.md` file as the primary refe
 - Scaffold and configure Vespa application packages, including services.xml, schemas, deployment.xml, query profiles, and embedder components.
 - Reference docs: `docs/embedders.md`, `docs/services-xml.md`
 
+### elasticsearch-migration
+
+- Path: `elasticsearch-migration/SKILL.md`
+- Migrate from Elasticsearch to Vespa — map ES indices and mappings to Vespa schemas, translate Query DSL to YQL, plan reindexing, and bridge ranking differences. Use when the user mentions migrating from Elasticsearch, ES→Vespa, porting an ES index, or replacing Elasticsearch with Vespa.
+- Reference docs: `docs/concept-mapping.md`, `docs/fetching-docs.md`, `docs/parser-and-tooling.md`, `docs/query-translation.md`
+
 ### feed-operations
 
 - Path: `feed-operations/SKILL.md`

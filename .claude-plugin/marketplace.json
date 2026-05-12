@@ -43,6 +43,12 @@
       "source": "./pyvespa",
       "skills": "./",
       "description": "Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python"
+    },
+    {
+      "name": "elasticsearch-migration",
+      "source": "./elasticsearch-migration",
+      "skills": "./",
+      "description": "Migrate from Elasticsearch to Vespa — map ES indices/mappings to Vespa schemas, translate Query DSL to YQL, plan reindexing, and bridge ranking differences"
     }
   ]
 }
