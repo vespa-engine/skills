@@ -12,7 +12,8 @@ Usage:
 Configuration via environment variables:
     EVAL_PROVIDER  - Provider to use: "claude" (default) or "codex"
     EVAL_MODEL     - Model to use (e.g. "claude-sonnet-4-20250514", "gpt-5-codex")
-    EVAL_TIMEOUT   - Timeout in seconds (default: 180)
+    EVAL_TIMEOUT   - Timeout in seconds (claude default: 180; codex fallback)
+    CODEX_TIMEOUT  - Codex-specific timeout override (default: 600)
     EVAL_MAX_TURNS - Max agent turns for Claude (default: 20)
     CLAUDE_CLI     - Path to claude binary (default: "claude")
     CODEX_CLI      - Path to codex binary (default: "codex")
@@ -24,6 +25,13 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+# Default timeouts (seconds). Codex (esp. gpt-5-codex reasoning) is slower
+# than Claude, so it gets a longer default. Overridable via env vars or by
+# passing `timeout=` to get_provider().
+DEFAULT_CLAUDE_TIMEOUT = 180
+DEFAULT_CODEX_TIMEOUT = 600
+DEFAULT_CLAUDE_MAX_TURNS = 20
 
 
 @dataclass
@@ -42,7 +50,7 @@ class Provider:
 
     name: str = "base"
 
-    def __init__(self, model: str = "", timeout: int = 180):
+    def __init__(self, model: str = "", timeout: int = DEFAULT_CLAUDE_TIMEOUT):
         self.model = model
         self.timeout = timeout
 
@@ -94,7 +102,12 @@ class ClaudeProvider(Provider):
 
     name = "claude"
 
-    def __init__(self, model: str = "", timeout: int = 180, max_turns: int = 20):
+    def __init__(
+        self,
+        model: str = "",
+        timeout: int = DEFAULT_CLAUDE_TIMEOUT,
+        max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
+    ):
         super().__init__(model, timeout)
         self.cli = os.environ.get("CLAUDE_CLI", "claude")
         self.max_turns = max_turns
@@ -180,7 +193,7 @@ class CodexProvider(Provider):
 
     name = "codex"
 
-    def __init__(self, model: str = "", timeout: int = 180):
+    def __init__(self, model: str = "", timeout: int = DEFAULT_CODEX_TIMEOUT):
         super().__init__(model, timeout)
         self.cli = os.environ.get("CODEX_CLI", "codex")
 
@@ -288,19 +301,23 @@ def get_provider(
 
     Args:
         model: Model override. Default: EVAL_MODEL env var.
-        timeout: Timeout in seconds. Default: EVAL_TIMEOUT env var or 180.
+        timeout: Timeout in seconds. Defaults: CODEX_TIMEOUT (codex, 600) or EVAL_TIMEOUT (180).
         provider_name: "claude" or "codex". Default: EVAL_PROVIDER env var or "claude".
     """
     name = (provider_name or os.environ.get("EVAL_PROVIDER") or "claude").lower()
     eff_model = model or os.environ.get("EVAL_MODEL", "")
-    eff_timeout = timeout or int(os.environ.get("EVAL_TIMEOUT", "180"))
 
     if name == "codex":
+        # CODEX_TIMEOUT wins; fall back to EVAL_TIMEOUT, then the module default.
+        eff_timeout = timeout or int(
+            os.environ.get("CODEX_TIMEOUT", os.environ.get("EVAL_TIMEOUT", str(DEFAULT_CODEX_TIMEOUT)))
+        )
         return CodexProvider(model=eff_model, timeout=eff_timeout)
     if name == "claude":
+        eff_timeout = timeout or int(os.environ.get("EVAL_TIMEOUT", str(DEFAULT_CLAUDE_TIMEOUT)))
         return ClaudeProvider(
             model=eff_model,
             timeout=eff_timeout,
-            max_turns=int(os.environ.get("EVAL_MAX_TURNS", "20")),
+            max_turns=int(os.environ.get("EVAL_MAX_TURNS", str(DEFAULT_CLAUDE_MAX_TURNS))),
         )
     raise ValueError(f"Unknown provider: {name!r} (expected 'claude' or 'codex')")

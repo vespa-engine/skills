@@ -143,7 +143,8 @@ design, so `workspace-write` is sufficient without the broader
 |----------|---------|-------------|
 | `EVAL_PROVIDER` | `claude` | Harness to use: `claude` or `codex` |
 | `EVAL_MODEL` | (CLI default) | Model to use |
-| `EVAL_TIMEOUT` | `180` | Timeout per run in seconds |
+| `EVAL_TIMEOUT` | `180` (claude) | Timeout per run in seconds; also used as codex fallback |
+| `CODEX_TIMEOUT` | `600` | Codex-specific timeout override (codex is slower than claude) |
 | `EVAL_MAX_TURNS` | `20` | Max agent turns per run (Claude only) |
 | `CLAUDE_CLI` | `claude` | Path to Claude CLI binary |
 | `CODEX_CLI` | `codex` | Path to Codex CLI binary |
