@@ -128,7 +128,7 @@ def run_single_eval(
 
 def run(args):
     """Run eval command with parsed args."""
-    provider = get_provider(model=args.model)
+    provider = get_provider(model=args.model, provider_name=getattr(args, "provider", None))
 
     evals_data = load_evals(args.evals_json, args.eval)
     skill_name = evals_data["skill_name"]

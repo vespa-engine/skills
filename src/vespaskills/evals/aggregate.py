@@ -27,6 +27,8 @@ def _fmt(key: str, value: float) -> str:
         return f"{value:.1%}"
     if key == "cost_usd":
         return f"${value:.4f}"
+    if key == "duration_ms":
+        return f"{value / 1000:,.1f}s"
     return f"{value:,.0f}"
 
 
@@ -46,6 +48,7 @@ def render_markdown(benchmark: dict) -> str:
     metric_keys = (
         "pass_rate",
         "invocation_rate",
+        "duration_ms",
         "total_input_tokens",
         "output_tokens",
         "cost_usd",
@@ -130,6 +133,7 @@ def run(args):
         sys.exit(1)
 
     usage_keys = (
+        "duration_ms",
         "total_input_tokens",
         "cache_read_input_tokens",
         "cache_creation_input_tokens",

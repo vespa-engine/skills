@@ -1,18 +1,22 @@
 """
 Provider abstraction for running coding agents in eval mode.
 
-Currently supports Claude Code CLI. The Provider base class can be
-extended with additional providers (e.g. OpenCode) in the future.
+Supports Claude Code CLI and OpenAI Codex CLI. The Provider base class
+can be extended with additional providers in the future.
 
 Usage:
-    provider = get_provider()
+    provider = get_provider()                        # default: claude
+    provider = get_provider(provider_name="codex")   # OpenAI Codex
     result = provider.run_prompt("Create a schema...", work_dir=Path("/tmp/test"))
 
 Configuration via environment variables:
-    EVAL_MODEL     - Model to use (e.g. "claude-sonnet-4-20250514")
-    EVAL_TIMEOUT   - Timeout in seconds (default: 180)
-    EVAL_MAX_TURNS - Max agent turns (default: 20)
+    EVAL_PROVIDER  - Provider to use: "claude" (default) or "codex"
+    EVAL_MODEL     - Model to use (e.g. "claude-sonnet-4-20250514", "gpt-5-codex")
+    EVAL_TIMEOUT   - Timeout in seconds (claude default: 180; codex fallback)
+    CODEX_TIMEOUT  - Codex-specific timeout override (default: 600)
+    EVAL_MAX_TURNS - Max agent turns for Claude (default: 20)
     CLAUDE_CLI     - Path to claude binary (default: "claude")
+    CODEX_CLI      - Path to codex binary (default: "codex")
 """
 
 import json
@@ -21,6 +25,13 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+# Default timeouts (seconds). Codex (esp. gpt-5-codex reasoning) is slower
+# than Claude, so it gets a longer default. Overridable via env vars or by
+# passing `timeout=` to get_provider().
+DEFAULT_CLAUDE_TIMEOUT = 180
+DEFAULT_CODEX_TIMEOUT = 600
+DEFAULT_CLAUDE_MAX_TURNS = 20
 
 
 @dataclass
@@ -39,7 +50,7 @@ class Provider:
 
     name: str = "base"
 
-    def __init__(self, model: str = "", timeout: int = 180):
+    def __init__(self, model: str = "", timeout: int = DEFAULT_CLAUDE_TIMEOUT):
         self.model = model
         self.timeout = timeout
 
@@ -91,7 +102,12 @@ class ClaudeProvider(Provider):
 
     name = "claude"
 
-    def __init__(self, model: str = "", timeout: int = 180, max_turns: int = 20):
+    def __init__(
+        self,
+        model: str = "",
+        timeout: int = DEFAULT_CLAUDE_TIMEOUT,
+        max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
+    ):
         super().__init__(model, timeout)
         self.cli = os.environ.get("CLAUDE_CLI", "claude")
         self.max_turns = max_turns
@@ -166,16 +182,142 @@ class ClaudeProvider(Provider):
             return {}
 
 
-def get_provider(model: str | None = None, timeout: int | None = None) -> ClaudeProvider:
+class CodexProvider(Provider):
+    """OpenAI Codex CLI provider.
+
+    Shells out to `codex exec --json` and parses the JSONL event stream
+    for token usage. The agent runs with sandboxing/approvals bypassed
+    inside the per-eval `work_dir`, mirroring the Claude provider's
+    `--dangerously-skip-permissions` behaviour.
     """
-    Create a Claude provider instance.
+
+    name = "codex"
+
+    def __init__(self, model: str = "", timeout: int = DEFAULT_CODEX_TIMEOUT):
+        super().__init__(model, timeout)
+        self.cli = os.environ.get("CODEX_CLI", "codex")
+
+    def _run(self, prompt: str, work_dir: Path, timeout: int) -> RunResult:
+        # `codex exec` is the non-interactive subcommand — it does not prompt
+        # for approvals, so --sandbox workspace-write is sufficient without
+        # the broader --dangerously-bypass-approvals-and-sandbox.
+        cmd = [
+            self.cli,
+            "exec",
+            "--json",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "workspace-write",
+            "-C",
+            str(work_dir),
+        ]
+        if self.model:
+            cmd.extend(["-m", self.model])
+        cmd.append(prompt)
+
+        env = os.environ.copy()
+
+        start = time.time()
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(work_dir),
+                capture_output=True,
+                text=True,
+                # stdin piped to /dev/null: otherwise codex treats an attached
+                # stdin as additional prompt input and appends a <stdin> block.
+                stdin=subprocess.DEVNULL,
+                timeout=timeout + 30,
+                env=env,
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            return RunResult(
+                exit_code=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                duration_ms=duration_ms,
+                output_files=self._collect_output_files(work_dir),
+            )
+        except subprocess.TimeoutExpired:
+            duration_ms = int((time.time() - start) * 1000)
+            return RunResult(
+                exit_code=124,
+                stdout="",
+                stderr=f"Timeout after {timeout}s",
+                duration_ms=duration_ms,
+                output_files=[],
+            )
+
+    def extract_usage(self, stdout: str) -> dict:
+        """Parse codex `--json` stdout for token usage.
+
+        Codex emits flat JSONL events. The final event of each turn is
+        `turn.completed`, which carries a `usage` sub-object:
+            {"type":"turn.completed","usage":{"input_tokens":N,
+             "cached_input_tokens":N,"output_tokens":N,
+             "reasoning_output_tokens":N}}
+        `total_tokens` is not currently emitted on stdout (see
+        openai/codex#5276) — we derive it as input + output.
+        """
+        usage: dict = {}
+        for line in stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            try:
+                evt = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(evt, dict) or evt.get("type") != "turn.completed":
+                continue
+            turn_usage = evt.get("usage")
+            if not isinstance(turn_usage, dict):
+                continue
+            for key in (
+                "input_tokens",
+                "cached_input_tokens",
+                "output_tokens",
+                "reasoning_output_tokens",
+            ):
+                if key in turn_usage:
+                    usage[key] = turn_usage[key]
+
+        # Normalize to the field names ClaudeProvider exposes so aggregate.py
+        # can treat both providers uniformly.
+        if "cached_input_tokens" in usage:
+            usage["cache_read_input_tokens"] = usage["cached_input_tokens"]
+        if "input_tokens" in usage:
+            usage["total_input_tokens"] = usage["input_tokens"]
+            usage["total_tokens"] = usage["input_tokens"] + usage.get("output_tokens", 0)
+        return usage
+
+
+def get_provider(
+    model: str | None = None,
+    timeout: int | None = None,
+    provider_name: str | None = None,
+) -> Provider:
+    """
+    Create a coding-agent provider instance.
 
     Args:
         model: Model override. Default: EVAL_MODEL env var.
-        timeout: Timeout in seconds. Default: EVAL_TIMEOUT env var or 180.
+        timeout: Timeout in seconds. Defaults: CODEX_TIMEOUT (codex, 600) or EVAL_TIMEOUT (180).
+        provider_name: "claude" or "codex". Default: EVAL_PROVIDER env var or "claude".
     """
-    return ClaudeProvider(
-        model=model or os.environ.get("EVAL_MODEL", ""),
-        timeout=timeout or int(os.environ.get("EVAL_TIMEOUT", "180")),
-        max_turns=int(os.environ.get("EVAL_MAX_TURNS", "20")),
-    )
+    name = (provider_name or os.environ.get("EVAL_PROVIDER") or "claude").lower()
+    eff_model = model or os.environ.get("EVAL_MODEL", "")
+
+    if name == "codex":
+        # CODEX_TIMEOUT wins; fall back to EVAL_TIMEOUT, then the module default.
+        eff_timeout = timeout or int(
+            os.environ.get("CODEX_TIMEOUT", os.environ.get("EVAL_TIMEOUT", str(DEFAULT_CODEX_TIMEOUT)))
+        )
+        return CodexProvider(model=eff_model, timeout=eff_timeout)
+    if name == "claude":
+        eff_timeout = timeout or int(os.environ.get("EVAL_TIMEOUT", str(DEFAULT_CLAUDE_TIMEOUT)))
+        return ClaudeProvider(
+            model=eff_model,
+            timeout=eff_timeout,
+            max_turns=int(os.environ.get("EVAL_MAX_TURNS", str(DEFAULT_CLAUDE_MAX_TURNS))),
+        )
+    raise ValueError(f"Unknown provider: {name!r} (expected 'claude' or 'codex')")

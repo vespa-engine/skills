@@ -61,7 +61,7 @@ evals/
 ├── evals.json              # Quality eval test cases (prompts + assertions)
 ├── trigger_evals.csv       # Trigger eval test cases (should/should-not trigger)
 ├── config.py               # Path constants
-├── providers.py            # Provider abstraction (Claude CLI)
+├── providers.py            # Provider abstraction (Claude CLI, Codex CLI)
 ├── run_evals.py            # Quality eval runner
 ├── run_trigger_evals.py    # Trigger eval runner
 ├── grade.py                # Graders: deterministic + LLM rubric
@@ -113,14 +113,41 @@ uv run python evals/run_evals.py
 uv run python evals/run_evals.py --model claude-sonnet-4-20250514
 ```
 
+## Harnesses
+
+Quality evals (`run_evals.py`) can run against either Claude Code or OpenAI
+Codex. Discovery and trigger evals remain Claude-only because they depend on
+`--plugin-dir` and stream-json event parsing.
+
+```bash
+# Default (Claude Code)
+vespaskills eval
+
+# OpenAI Codex CLI
+vespaskills eval --provider codex
+vespaskills eval --provider codex --model <codex-model>
+
+# Or pin via env var (useful for CI):
+EVAL_PROVIDER=codex vespaskills eval
+```
+
+The codex harness calls `codex exec --json --sandbox workspace-write -C <outputs>`
+inside each eval's `outputs/` directory. (`codex exec` is non-interactive by
+design, so `workspace-write` is sufficient without the broader
+`--dangerously-bypass-approvals-and-sandbox`.) Run `codex --help` to list valid
+`-m/--model` values for your installed CLI version.
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `EVAL_PROVIDER` | `claude` | Harness to use: `claude` or `codex` |
 | `EVAL_MODEL` | (CLI default) | Model to use |
-| `EVAL_TIMEOUT` | `180` | Timeout per run in seconds |
-| `EVAL_MAX_TURNS` | `20` | Max agent turns per run |
+| `EVAL_TIMEOUT` | `180` (claude) | Timeout per run in seconds; also used as codex fallback |
+| `CODEX_TIMEOUT` | `600` | Codex-specific timeout override (codex is slower than claude) |
+| `EVAL_MAX_TURNS` | `20` | Max agent turns per run (Claude only) |
 | `CLAUDE_CLI` | `claude` | Path to Claude CLI binary |
+| `CODEX_CLI` | `codex` | Path to Codex CLI binary |
 
 ## Plugin Setup
 
