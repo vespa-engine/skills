@@ -3,6 +3,28 @@ name: Run Harness
 on:
   workflow_dispatch:
     inputs:
+      providers:
+        description: "Which agent providers to run"
+        required: false
+        type: choice
+        default: both
+        options:
+          - both
+          - claude
+          - codex
+      evals:
+        description: "Which eval files to run"
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - new-only
+          - data/evals.json
+          - data/evals_app-package.json
+          - data/evals_feed-operations.json
+          - data/evals_pyvespa.json
+          - data/evals_query-builder.json
       eval_name:
         description: "Single eval name to run (optional; runs all if blank)"
         required: false
@@ -21,18 +43,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      providers: ${{ steps.build.outputs.providers }}
+      evals: ${{ steps.build.outputs.evals }}
+    steps:
+      - id: build
+        run: |
+          case "${{ inputs.providers }}" in
+            claude) PROVIDERS='["claude"]' ;;
+            codex)  PROVIDERS='["codex"]'  ;;
+            *)      PROVIDERS='["claude","codex"]' ;;
+          esac
+          case "${{ inputs.evals }}" in
+            all)
+              EVALS='["data/evals.json","data/evals_app-package.json","data/evals_feed-operations.json","data/evals_pyvespa.json","data/evals_query-builder.json"]'
+              ;;
+            new-only)
+              EVALS='["data/evals_feed-operations.json","data/evals_pyvespa.json","data/evals_query-builder.json"]'
+              ;;
+            *)
+              EVALS='["${{ inputs.evals }}"]'
+              ;;
+          esac
+          echo "providers=$PROVIDERS" >> "$GITHUB_OUTPUT"
+          echo "evals=$EVALS" >> "$GITHUB_OUTPUT"
+
   harness:
+    needs: matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        provider: [claude, codex]
-        evals_json:
-          - data/evals.json
-          - data/evals_app-package.json
-          - data/evals_feed-operations.json
-          - data/evals_pyvespa.json
-          - data/evals_query-builder.json
+        provider: ${{ fromJSON(needs.matrix.outputs.providers) }}
+        evals_json: ${{ fromJSON(needs.matrix.outputs.evals) }}
     env:
       ITERATION: ${{ github.run_number }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
