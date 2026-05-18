@@ -115,13 +115,13 @@ field html type string        { indexing: summary }                     # retrie
 
 ### Attribute Modifiers
 
-```sd
-attribute {
-    fast-search    # B-tree posting list for fast filtering
-    fast-access    # keep in memory on all nodes
-    paged          # allow paging to disk to save memory
-}
-```
+Pick by workload, not by default:
+
+| Modifier | When to use |
+|---|---|
+| `fast-search` | Filter / range queries on this attribute, or attribute-only exact match (`=` query prefix). Adds a B-tree. Not supported on dense (indexed-only) tensors. |
+| `fast-access` | Attribute is read on every query and you have memory headroom. Replicated to all nodes. Not supported on predicate, tensor, or reference attributes. |
+| `paged` | **Large attributes** — embedding tensors (≥256 dims), long `array<>`/`weightedset<>` columns, or rarely-accessed fields. Trades RAM for occasional disk reads. Set this on any embedding tensor unless you have a specific reason not to. |
 
 ### Input Expressions
 
@@ -157,6 +157,19 @@ Note: `match: word` and `match: exact` require `index`. For attribute-only exact
 ## Tensor Fields and HNSW Configuration
 
 Tensor type syntax: `tensor<value-type>(dimension-list)`. Indexed dims `x[N]`, mapped dims `x{}`, mixed `tensor<float>(cat{}, x[128])`. Configure HNSW under `index { hnsw { ... } }` on a tensor attribute field.
+
+Default skeleton for an embedding field — note `paged` (tensors are large, not every value is needed in RAM at query time):
+
+```sd
+field embedding type tensor<float>(x[768]) {
+    indexing: attribute | index
+    attribute {
+        distance-metric: prenormalized-angular   # for already-normalized vectors; use `angular` otherwise
+        paged
+    }
+    index { hnsw { max-links-per-node: 16  neighbors-to-explore-at-insert: 200 } }
+}
+```
 
 For the full distance-metric table, HNSW parameter guidance, and a complete tensor-field example, load `docs/tensors-and-hnsw.md`.
 
@@ -271,11 +284,13 @@ field title type string { indexing: summary | index   index: enable-bm25 }
 
 For gotchas 5–12 (memory/paging, type changes, reserved names, `raw` storage, weightedset type limits, references + `import field`, `fast-access`/`fast-search` restrictions), load `docs/gotchas-extended.md`.
 
-## Agent Instructions
+## Validation Checks
 
-When working with Vespa schemas:
+Apply only the checks that match what you actually changed:
 
-1. Validate that `schema` and `document` names match.
-2. Ensure every field used in `bm25()` ranking has `index: enable-bm25`.
-3. Confirm tensor dimensions are consistent between schema fields and rank profile inputs.
-4. Check that fields referenced in fieldsets, rank profiles, and summaries exist in the document.
+- **Wrote a new schema?** Confirm outer `schema` and inner `document` names match.
+- **Added a field used in `bm25()`?** Confirm `index: enable-bm25` is set on that field.
+- **Added or changed a tensor / a rank-profile `inputs` block?** Confirm document-side and query-side dimension names and sizes agree (`x[384]` on both, not `d[384]` vs `x[384]`).
+- **Added a rank profile, fieldset, or summary that references field names?** Confirm those fields exist in the document.
+
+For incremental edits to an existing schema, do **not** re-validate sections you did not touch. Trust the existing file. Re-reading or restating unchanged content adds turns without changing the output.

@@ -22,6 +22,12 @@ def main():
     p_eval.add_argument("--skip-with-skill", action="store_true", help="Skip with-skill runs")
     p_eval.add_argument("--evals-json", type=Path, default=EVALS_JSON, help="Path to evals.json")
     p_eval.add_argument("--model", type=str, help="Model override")
+    p_eval.add_argument(
+        "--provider",
+        type=str,
+        choices=["claude", "codex"],
+        help="Coding agent harness (default: EVAL_PROVIDER env var or 'claude')",
+    )
 
     # --- eval-discovery (discovery mode — plugin loaded via --plugin-dir) ---
     p_disc = subparsers.add_parser(
