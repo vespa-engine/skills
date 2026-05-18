@@ -121,7 +121,7 @@ Pick by workload, not by default:
 |---|---|
 | `fast-search` | Filter / range queries on this attribute, or attribute-only exact match (`=` query prefix). Adds a B-tree. Not supported on dense (indexed-only) tensors. |
 | `fast-access` | Attribute is read on every query and you have memory headroom. Replicated to all nodes. Not supported on predicate, tensor, or reference attributes. |
-| `paged` | **Large attributes** — embedding tensors (≥256 dims), long `array<>`/`weightedset<>` columns, or rarely-accessed fields. Trades RAM for occasional disk reads. Set this on any embedding tensor unless you have a specific reason not to. |
+| `paged` | **Opt-in only when memory is the binding constraint.** Backs the attribute by disk so it can be paged out, trading RAM for I/O. Costs: unpredictable query latency, ~2x disk usage, unreliable memory metrics, and high system CPU under load. **Strongly discouraged in combination with HNSW** (random access during feeding tanks throughput). Do not add by default — only when the user explicitly asks to reduce memory and accepts these trade-offs. See [Vespa docs](https://docs.vespa.ai/en/content/attributes.html#paged-attributes-disadvantages). |
 
 ### Input Expressions
 
@@ -158,14 +158,13 @@ Note: `match: word` and `match: exact` require `index`. For attribute-only exact
 
 Tensor type syntax: `tensor<value-type>(dimension-list)`. Indexed dims `x[N]`, mapped dims `x{}`, mixed `tensor<float>(cat{}, x[128])`. Configure HNSW under `index { hnsw { ... } }` on a tensor attribute field.
 
-Default skeleton for an embedding field — note `paged` (tensors are large, not every value is needed in RAM at query time):
+Default skeleton for an embedding field. Do **not** add `paged` here — it is strongly discouraged with HNSW (see Attribute Modifiers table above):
 
 ```sd
 field embedding type tensor<float>(x[768]) {
     indexing: attribute | index
     attribute {
         distance-metric: prenormalized-angular   # for already-normalized vectors; use `angular` otherwise
-        paged
     }
     index { hnsw { max-links-per-node: 16  neighbors-to-explore-at-insert: 200 } }
 }
