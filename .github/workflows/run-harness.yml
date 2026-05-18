@@ -30,6 +30,9 @@ jobs:
         evals_json:
           - data/evals.json
           - data/evals_app-package.json
+          - data/evals_feed-operations.json
+          - data/evals_pyvespa.json
+          - data/evals_query-builder.json
     env:
       ITERATION: ${{ github.run_number }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
