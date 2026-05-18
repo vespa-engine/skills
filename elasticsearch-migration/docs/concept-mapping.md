@@ -58,17 +58,15 @@ See `app-package` skill for services.xml details.
 ```
 field title type string {
     indexing: index | summary
-    index {
-        enable-bm25
-    }
 }
 ```
 
 - `indexing: index` tokenizes and adds to the inverted index (text search).
 - `indexing: summary` makes the field available in returned hits (the ES `_source` echo).
-- `index { enable-bm25 }` lets the rank profile use `bm25(title)` as a feature. Per the rank-features reference: *"the field must be enabled to be used with the bm25 feature; set the enable-bm25 flag in the index section of the field definition."*
+- Use `nativeRank` (Vespa's default rank feature, computed without extra config) as the first-phase expression. It's the safest starting point for migrations because BM25 parity with ES requires matching Lucene analyzers as well — see Vespa's Lucene Linguistics component referenced from `SKILL.md`.
+- Once you've configured Lucene Linguistics (or accepted Vespa's default linguistics), opt into BM25 by adding `index { enable-bm25 }` to the field and using `bm25(title)` in the rank profile. Per the rank-features reference: *"the field must be enabled to be used with the bm25 feature; set the enable-bm25 flag in the index section of the field definition."*
 
-Vespa's tokenizer is linguistics-aware (CJK, accent folding, stemming by language) but is *not* the ES standard analyzer. Plan to compare hit sets on representative queries; do not expect identical tokenization.
+Vespa's default tokenizer is linguistics-aware (CJK, accent folding, stemming by language) but is *not* the ES standard analyzer. Plan to compare hit sets on representative queries; do not expect identical tokenization.
 
 Reference: <https://docs.vespa.ai/en/reference/schemas/schemas.html>
 
@@ -121,15 +119,21 @@ field in_stock type bool {
     indexing: attribute | summary
 }
 
+field published_raw type string {
+    indexing: summary
+}
+
 field published type long {
-    indexing: attribute | summary
+    indexing: input published_raw | to_epoch_second | attribute | summary
 }
 ```
 
 - Always add `indexing: attribute` if you intend to filter, sort, group, or rank on the field. Without it, the value is stored but unusable in WHERE clauses.
-- Vespa has no first-class date type; the convention is `long` holding seconds-since-epoch (or use a `string` if you want ISO-8601 readability — at the cost of range queries).
+- **Vespa has no `date` field type. Best practice is to use a `long`** holding seconds-since-epoch — per the [indexing docs](https://docs.vespa.ai/en/writing/indexing.html#date-indexing). If the ES source ships ISO-8601 strings, route them through the `to_epoch_second` indexing primitive as shown.
+- For a "last-modified" style field, declare it **outside** the `document` block with `indexing: now | attribute | summary` to get a synthetic per-update timestamp.
+- Avoid storing dates as strings if you need range queries; the `long` form gives you efficient inclusive/exclusive ranges and ordering.
 
-Reference: <https://docs.vespa.ai/en/reference/schemas/schemas.html>
+Reference: <https://docs.vespa.ai/en/writing/indexing.html#date-indexing>
 
 ---
 
@@ -152,7 +156,7 @@ Reference: <https://docs.vespa.ai/en/reference/schemas/schemas.html>
 field embedding type tensor<float>(x[384]) {
     indexing: summary | attribute | index
     attribute {
-        distance-metric: angular
+        distance-metric: prenormalized-angular
     }
     index {
         hnsw {
@@ -164,11 +168,19 @@ field embedding type tensor<float>(x[384]) {
 ```
 
 - Valid `distance-metric` values per the schema reference: `euclidean`, `angular`, `dotproduct`, `prenormalized-angular`, `hamming`, `geodegrees`.
-- `angular` is cosine distance. Use `prenormalized-angular` when your vectors are already unit-normalized — it skips the normalization step at query time and is faster.
-- HNSW defaults (per the schema reference): `max-links-per-node: 16`, `neighbors-to-explore-at-insert: 200`. Tune per your recall/latency target.
-- For very high recall you can also use `nearestNeighbor` without an HNSW index (brute force over the attribute) — useful for smaller collections.
+- **Normalize embeddings at the embedder layer and use the dot-product family on both sides.** Elasticsearch 8.12+ internally treats `similarity: cosine` as "dot product over normalized vectors", and its recommended high-performance setting is `similarity: dot_product` with caller-normalized vectors. The Vespa equivalent is `distance-metric: prenormalized-angular` (skips the at-query normalization). This is also the apples-to-apples convention used in the [Nov 2024 Elasticsearch vs Vespa benchmark](https://blog.vespa.ai/elasticsearch-vs-vespa-performance-comparison/): both engines configured with normalized embeddings + dot-product / prenormalized-angular, yielding ~0.94 top-10 vector overlap. Use plain `angular` only if you genuinely cannot normalize at the embedder.
+- HNSW parameter equivalence:
 
-Reference: <https://docs.vespa.ai/en/querying/approximate-nn-hnsw.html>
+  | ES (`dense_vector` index_options) | Vespa (`index { hnsw { ... } }`) | ES default | Vespa default |
+  |---|---|---|---|
+  | `m` | `max-links-per-node` | 16 | 16 |
+  | `ef_construction` | `neighbors-to-explore-at-insert` | 100 | **200** |
+
+  Note the `ef_construction` asymmetry: Vespa's default is 2× ES's, which biases toward recall over indexing speed. The benchmark referenced above set both engines to `M=16, ef_construction=200` (the [original HNSW paper](https://arxiv.org/abs/1603.09320) defaults) to compare apples-to-apples — a reasonable target if you want recall parity rather than ES-default behavior. If you specifically need to reproduce ES defaults, set `neighbors-to-explore-at-insert: 100`.
+- Note that Elasticsearch 8.14+ changed the default `dense_vector` index type to `int8_hnsw` (scalar quantization to bytes). The benchmark kept ES on `hnsw` (float) to compare at equal precision; if your source index uses `int8_hnsw`, configure Vespa with an int8 tensor (`tensor<int8>(x[N])`) for the same accuracy/footprint tradeoff.
+- For very high recall you can also use `nearestNeighbor` without an HNSW index (brute force over the attribute) — useful for smaller collections, and per the benchmark this is what *both* engines fall back to when the pre-filter matches very few docs.
+
+Reference: <https://docs.vespa.ai/en/approximate-nn-hnsw.html>
 
 ---
 
@@ -236,7 +248,7 @@ schema products {
 
 - Vespa does not have a `nested` type. Use `array<struct>` with `struct-field` declarations to expose subfields to the indexing pipeline.
 - The schema reference is explicit: `struct` is *"contained in document"*. Declaring it outside is a deploy error.
-- For very large nested collections, prefer a parent/child schema split with `reference` joins (covered in `schema-authoring`).
+- When you have **few parents and many children** (e.g. a small product catalogue with many reviews per product, or a tenant config referenced by many events), prefer a parent/child schema split with `reference` joins instead of inlining everything as `array<struct>`. Covered in `schema-authoring`.
 
 Reference: <https://docs.vespa.ai/en/reference/schemas/schemas.html>
 
@@ -297,9 +309,9 @@ id:mynamespace:products::abc123
 
 Format breakdown: `id:<namespace>:<schema>:[<group>]:<user-defined-key>`.
 
-- `namespace` is a tenant-level grouping (any non-empty string). Pick one per logical dataset.
+- `namespace` is a *logical* id-collision separator — per the [Vespa documents reference](https://docs.vespa.ai/en/documents.html), it "has no function in Vespa beyond [collision-prevention], and can just be set to any short constant value". It is **not** a tenant boundary or security boundary.
 - `<schema>` must match the schema name (here `products`).
-- `[<group>]` is optional and used for streaming search.
+- `[<group>]` is optional and used for streaming search / grouping; leave empty for plain indexed docs.
 - `<user-defined-key>` is what corresponds to the ES `_id`.
 
 Pick the namespace and group convention *before* feeding. Rewriting IDs after the fact is painful.
@@ -308,31 +320,43 @@ Reference: <https://docs.vespa.ai/en/reference/schemas/document-json-format.html
 
 ---
 
-## Bulk feeding (ES `_bulk` ↔ `vespa feed`)
+## Bulk feeding (ES `_bulk` ↔ `vespa feed` over HTTP/2)
 
-**ES:**
+Note these are *not* directly equivalent APIs. **Vespa has no bulk endpoint** — clients send single-document operations to `/document/v1/`, and throughput comes from HTTP/2 multiplexing inside the feed client. The wire shape and concurrency model are different; only the JSON payload of an individual `put` looks similar.
+
+**ES** (`POST /_bulk`, NDJSON with alternating metadata + data lines):
 
 ```
-POST /_bulk
 { "index": { "_index": "products", "_id": "abc123" } }
 { "title": "Widget", "price": 9.99 }
 ```
 
-**Vespa** (JSONL file, one document per line):
+**Vespa** (JSONL file, one self-contained document operation per line):
 
 ```json
 {"put": "id:mynamespace:products::abc123", "fields": {"title": "Widget", "price": 9.99}}
 ```
 
-Feed with:
+The Vespa form needs no separate metadata line — the id and operation type are encoded in the `put` field itself.
+
+**Primary path — the `vespa feed` CLI** (fastest, async HTTP/2 with dynamic throttling — wraps the same Java client as below):
 
 ```bash
 vespa feed --target <endpoint> docs.jsonl
 ```
 
+Alternatives when the CLI doesn't fit the workflow:
+
+| Client | Use when | Reference |
+|---|---|---|
+| `vespa-feed-client` (Java) | Embedding the same high-throughput client into a JVM service / CI pipeline | <https://docs.vespa.ai/en/clients/vespa-feed-client.html> |
+| `pyvespa` (Python, async) | Python data pipelines, notebooks — use `feed_async_iterable` for I/O-bound feeds | <https://github.com/vespa-engine/pyvespa> |
+| `/document/v1/` HTTP API | Any language, no SDK needed | <https://docs.vespa.ai/en/reference/document-v1-api-reference.html> |
+| Logstash `vespa_feed` output | Continuous streaming ETL (ES, Kafka, JDBC) — not for raw one-shot throughput | <https://blog.vespa.ai/logstash-vespa-tutorials/> |
+
 Use the `feed-operations` skill for partial updates, conditional writes, and visiting/exports.
 
-Reference: <https://docs.vespa.ai/en/reference/schemas/document-json-format.html>
+Reference: <https://docs.vespa.ai/en/reference/document-json-format.html>
 
 ---
 
@@ -349,9 +373,9 @@ Vespa has no alias layer. Two patterns approximate the common use cases:
 
 **ES:** ingest pipelines (`processors: [...]`).
 
-**Vespa:** declare a `document-processing` cluster in `services.xml` and write custom doc processors (Java) or use the schema's `indexing:` pipeline for inline transformations (lowercase, tokenize, embed, etc.).
+**Vespa:** prefer the schema's **`indexing:` pipeline** if it does what you need — it covers lowercase, tokenize, embed, split, join, attribute writes, conditional transforms, and more, all declaratively in the `.sd` file. Only reach for a custom Java **document processor** (declared via a `document-processing` cluster in `services.xml`) when the indexing language genuinely can't express the transformation (e.g. external lookups, multi-document side effects, complex stateful logic).
 
-For embedding text → vector inline at indexing time, use the `embed` indexing primitive with a configured embedder component (see `app-package` skill).
+For embedding text → vector inline at indexing time, use the `embed` indexing primitive with a configured embedder component — no Java required (see `app-package` skill).
 
 ---
 
