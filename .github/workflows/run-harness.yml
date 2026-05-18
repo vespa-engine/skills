@@ -1,0 +1,109 @@
+name: Run Harness
+
+on:
+  workflow_dispatch:
+    inputs:
+      eval_name:
+        description: "Single eval name to run (optional; runs all if blank)"
+        required: false
+        type: string
+      model_claude:
+        description: "Model override for claude provider (optional)"
+        required: false
+        type: string
+      model_codex:
+        description: "Model override for codex provider (optional)"
+        required: false
+        type: string
+
+concurrency:
+  group: run-harness
+  cancel-in-progress: false
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [claude, codex]
+        evals_json:
+          - data/evals.json
+          - data/evals_app-package.json
+    env:
+      ITERATION: ${{ github.run_number }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install agent CLI
+        run: |
+          if [ "${{ matrix.provider }}" = "claude" ]; then
+            npm install -g @anthropic-ai/claude-code
+            claude --version
+          else
+            npm install -g @openai/codex
+            codex --version
+          fi
+
+      - name: Install python deps
+        run: uv sync
+
+      - name: Run eval
+        run: |
+          ARGS="--provider ${{ matrix.provider }} --evals-json ${{ matrix.evals_json }} --iteration ${ITERATION}"
+          if [ -n "${{ inputs.eval_name }}" ]; then
+            ARGS="$ARGS --eval ${{ inputs.eval_name }}"
+          fi
+          if [ "${{ matrix.provider }}" = "claude" ] && [ -n "${{ inputs.model_claude }}" ]; then
+            ARGS="$ARGS --model ${{ inputs.model_claude }}"
+          fi
+          if [ "${{ matrix.provider }}" = "codex" ] && [ -n "${{ inputs.model_codex }}" ]; then
+            ARGS="$ARGS --model ${{ inputs.model_codex }}"
+          fi
+          uv run vespaskills eval $ARGS
+
+      - name: Grade
+        run: |
+          uv run vespaskills grade --iteration ${ITERATION} --evals-json ${{ matrix.evals_json }}
+
+      - name: Aggregate
+        run: |
+          uv run vespaskills aggregate --iteration ${ITERATION} --evals-json ${{ matrix.evals_json }}
+
+      - name: Locate workspace
+        id: workspace
+        run: |
+          SKILL=$(python -c "import json; print(json.load(open('${{ matrix.evals_json }}'))['skill_name'])")
+          echo "skill=${SKILL}" >> "$GITHUB_OUTPUT"
+          echo "dir=${SKILL}-workspace/iteration-${ITERATION}" >> "$GITHUB_OUTPUT"
+
+      - name: Append benchmark to job summary
+        if: always()
+        run: |
+          BENCH="${{ steps.workspace.outputs.dir }}/benchmark.md"
+          if [ -f "$BENCH" ]; then
+            echo "## ${{ matrix.provider }} — ${{ steps.workspace.outputs.skill }}" >> "$GITHUB_STEP_SUMMARY"
+            cat "$BENCH" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No benchmark.md at $BENCH" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload workspace artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-${{ matrix.provider }}-${{ steps.workspace.outputs.skill }}-${{ env.ITERATION }}
+          path: ${{ steps.workspace.outputs.dir }}
+          if-no-files-found: warn
