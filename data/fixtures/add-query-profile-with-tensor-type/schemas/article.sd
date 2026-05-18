@@ -1,0 +1,36 @@
+schema article {
+  document article {
+    field title type string {
+      indexing: summary | index
+      index: enable-bm25
+    }
+    field body type string {
+      indexing: summary | index
+      index: enable-bm25
+    }
+    field embedding type tensor<float>(x[384]) {
+      indexing: attribute | index
+      attribute {
+        distance-metric: prenormalized-angular
+      }
+      index {
+        hnsw {
+          max-links-per-node: 16
+        }
+      }
+    }
+  }
+
+  fieldset default {
+    fields: title, body
+  }
+
+  rank-profile semantic {
+    inputs {
+      query(q_embedding) tensor<float>(x[384])
+    }
+    first-phase {
+      expression: closeness(field, embedding)
+    }
+  }
+}

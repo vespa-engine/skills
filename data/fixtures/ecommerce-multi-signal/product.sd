@@ -1,0 +1,36 @@
+schema product {
+  document product {
+    field title type string {
+      indexing: summary | index
+      index: enable-bm25
+    }
+    field description type string {
+      indexing: summary | index
+      index: enable-bm25
+    }
+    field category type string {
+      indexing: summary | attribute
+      attribute: fast-search
+    }
+    field brand type string {
+      indexing: summary | attribute
+      attribute: fast-search
+    }
+    field price type int {
+      indexing: summary | attribute
+    }
+    field rating type float {
+      indexing: summary | attribute
+    }
+    field in_stock type bool {
+      indexing: summary | attribute
+    }
+    field updated_at type long {
+      indexing: summary | attribute
+    }
+  }
+
+  fieldset default {
+    fields: title, description
+  }
+}

@@ -1,0 +1,4 @@
+{"put": "id:shop:product:sku-1", "fields": {"name": "Widget", "price": 9.99, "tags": ["new", "sale"]}}
+{"update": "id:shop:product::sku-2", "fields": {"price": 14.99, "stock": {"increment": 5}}}
+{"remove": "id:shop:product::sku-3", "fields": {"name": "obsolete"}}
+{"update": "id:shop:product::sku-4", "fields": {"tags": {"add": ["clearance", "final"]}, "labels": {"add": ["promo", "weekend"]}}}

@@ -1,0 +1,5 @@
+select * from product
+where ({targetHits=200}weakAnd(title contains "running", title contains "shoes", title contains "trail"))
+  and category = "Shoes"
+  and price < 200
+each(group(brand) each(output(count(), avg(price))))
