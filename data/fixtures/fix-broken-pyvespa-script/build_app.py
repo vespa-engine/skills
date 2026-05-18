@@ -4,10 +4,10 @@ There are several bugs in this script. Find and fix them all.
 """
 
 from vespa.package import (
+    HNSW,
     ApplicationPackage,
     Field,
     FieldSet,
-    HNSW,
     RankProfile,
 )
 
