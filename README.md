@@ -62,6 +62,7 @@ git clone git@github.com:vespaai-playground/skills.git
 | Skill | Description |
 |-------|-------------|
 | [`app-package`](app-package/SKILL.md) | Scaffold and configure Vespa application packages, including services.xml, schemas, deployment.xml, query profiles, and embedder components. |
+| [`elasticsearch-migration`](elasticsearch-migration/SKILL.md) | Migrate from Elasticsearch to Vespa — map ES indices and mappings to Vespa schemas, translate Query DSL to YQL, plan reindexing, and bridge ranking differences. Use when the user mentions migrating from Elasticsearch, ES→Vespa, porting an ES index, or replacing Elasticsearch with Vespa. |
 | [`feed-operations`](feed-operations/SKILL.md) | Vespa document CRUD operations and bulk feeding — covers document ID format, JSON wire format for put/update/remove, REST API endpoints, CLI commands, partial updates, conditional writes, bulk feeding, and document visiting/export. |
 | [`pyvespa`](pyvespa/SKILL.md) | Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python using pyvespa. |
 | [`query-builder`](query-builder/SKILL.md) | Build Vespa YQL queries and design rank profiles. Covers YQL syntax, operators, grouping, rank-profile phases, ML model integration, and query tensor inputs. |
