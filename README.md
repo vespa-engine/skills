@@ -18,6 +18,7 @@ Add the marketplace and install skills using `/plugin` inside Claude Code:
 /plugin install feed-operations
 /plugin install vespa-cli
 /plugin install pyvespa
+/plugin install elasticsearch-migration
 ```
 
 Or from a local clone:
