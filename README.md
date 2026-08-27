@@ -6,56 +6,23 @@ Each skill is a self-contained folder with a `SKILL.md` as the single source of 
 
 ## Installation
 
-### Claude Code
+### Vespa CLI (recommended)
 
-Add the marketplace and install skills using `/plugin` inside Claude Code:
-
-```
-/plugin marketplace add vespaai-playground/skills
-/plugin install schema-authoring
-/plugin install app-package
-/plugin install query-builder
-/plugin install feed-operations
-/plugin install vespa-cli
-/plugin install pyvespa
-/plugin install elasticsearch-migration
-```
-
-Or from a local clone:
+The [Vespa CLI](https://docs.vespa.ai/en/vespa-cli.html) can install skills directly for Claude Code, Codex, Cursor and Antigravity CLI - no manual cloning required:
 
 ```bash
-git clone git@github.com:vespaai-playground/skills.git
-```
-```
-/plugin marketplace add ./skills
-/plugin install schema-authoring
+vespa skills install
 ```
 
-### OpenAI Codex
+Run `vespa skills list` to see available skills, and `vespa skills update` to refresh previously installed skills to the latest version.
 
-Clone the repo into your project (or a parent directory). Codex reads `AGENTS.md` automatically when present in the working tree:
+### npx skills
+
+[`npx skills`](https://github.com/vercel-labs/skills) installs skills into any of 70+ supported agent harnesses (Claude Code, Cursor, Codex, and just about every other agent harness):
 
 ```bash
-git clone git@github.com:vespaai-playground/skills.git
+npx skills add vespaai-playground/skills
 ```
-
-### Google Gemini CLI
-
-```bash
-git clone git@github.com:vespaai-playground/skills.git
-# Gemini CLI reads AGENTS.md automatically when present in the working tree
-```
-
-### Cursor
-
-Clone the repo — Cursor discovers skills via `.cursor-plugin/`:
-
-```bash
-git clone git@github.com:vespaai-playground/skills.git
-# Cursor reads .cursor-plugin/plugin.json automatically
-```
-
-> **Private repos**: All platforms work with local clones, so public vs private doesn't matter — just clone via SSH and the tools read from the local filesystem.
 
 ## Skills
 
@@ -105,7 +72,7 @@ Run the skill benchmark suite with `uv run vespaskills eval` / `eval-discovery` 
 1. Create a new folder at the root: `my-skill/`
 2. Add a `SKILL.md` with YAML frontmatter (`name` and `description`)
 3. Add reference docs in `my-skill/docs/` as needed
-4. Add an entry to `platforms/claude/marketplace.json`
+4. Add an entry to `.claude-plugin/marketplace.json`
 5. Run `python generate.py`
 
 ## Contributing
