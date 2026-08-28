@@ -21,7 +21,7 @@ Run `vespa skills list` to see available skills, and `vespa skills update` to re
 [`npx skills`](https://github.com/vercel-labs/skills) installs skills into any of 70+ supported agent harnesses (Claude Code, Cursor, Codex, and just about every other agent harness):
 
 ```bash
-npx skills add vespaai-playground/skills
+npx skills add vespa-engine/skills
 ```
 
 ## Skills
