@@ -11,7 +11,7 @@ Each skill is a self-contained folder with a `SKILL.md` as the single source of 
 Add the marketplace and install skills using `/plugin` inside Claude Code:
 
 ```
-/plugin marketplace add vespaai-playground/skills
+/plugin marketplace add vespa-engine/skills
 /plugin install schema-authoring
 /plugin install app-package
 /plugin install query-builder
@@ -24,7 +24,7 @@ Add the marketplace and install skills using `/plugin` inside Claude Code:
 Or from a local clone:
 
 ```bash
-git clone git@github.com:vespaai-playground/skills.git
+git clone git@github.com:vespa-engine/skills.git
 ```
 ```
 /plugin marketplace add ./skills
@@ -36,13 +36,13 @@ git clone git@github.com:vespaai-playground/skills.git
 Clone the repo into your project (or a parent directory). Codex reads `AGENTS.md` automatically when present in the working tree:
 
 ```bash
-git clone git@github.com:vespaai-playground/skills.git
+git clone git@github.com:vespa-engine/skills.git
 ```
 
 ### Google Gemini CLI
 
 ```bash
-git clone git@github.com:vespaai-playground/skills.git
+git clone git@github.com:vespa-engine/skills.git
 # Gemini CLI reads AGENTS.md automatically when present in the working tree
 ```
 
@@ -51,7 +51,7 @@ git clone git@github.com:vespaai-playground/skills.git
 Clone the repo — Cursor discovers skills via `.cursor-plugin/`:
 
 ```bash
-git clone git@github.com:vespaai-playground/skills.git
+git clone git@github.com:vespa-engine/skills.git
 # Cursor reads .cursor-plugin/plugin.json automatically
 ```
 
