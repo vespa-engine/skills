@@ -8,7 +8,7 @@ Load this reference when deploying an `ApplicationPackage` to Vespa Cloud (with 
 from vespa.deployment import VespaDocker
 
 vespa_docker = VespaDocker(port=8080)
-app = vespa_docker.deploy(app_package)      # Returns Vespa instance
+app = vespa_docker.deploy(app_package)  # Returns Vespa instance
 
 # Reconnect to existing container
 vespa_docker = VespaDocker.from_container_name_or_id("vespa-container-name")
@@ -25,7 +25,7 @@ vespa_cloud = VespaCloud(
     tenant="my-tenant",
     application="my-app",
     application_package=app_package,
-    auth_client_token_id="my-token-id",   # For token-based data plane auth
+    auth_client_token_id="my-token-id",  # For token-based data plane auth
 )
 
 # Deploy to dev

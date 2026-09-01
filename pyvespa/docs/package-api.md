@@ -204,10 +204,10 @@ RankProfile(
 
 ```python
 # (query_name, tensor_type)
-inputs=[("query(q)", "tensor<float>(x[384])")]
+inputs = [("query(q)", "tensor<float>(x[384])")]
 
 # (query_name, tensor_type, default_value)
-inputs=[("query(threshold)", "double", "0.5")]
+inputs = [("query(threshold)", "double", "0.5")]
 ```
 
 ### Ranking Phase Classes
@@ -252,16 +252,22 @@ StructField(
 Example:
 
 ```python
-address_struct = Struct(name="address", fields=[
-    Field(name="street", type="string"),
-    Field(name="city", type="string"),
-])
+address_struct = Struct(
+    name="address",
+    fields=[
+        Field(name="street", type="string"),
+        Field(name="city", type="string"),
+    ],
+)
 schema.document.add_structs(address_struct)
 schema.add_fields(
-    Field(name="address", type="address",
-          struct_fields=[
-              StructField(name="city", indexing=["attribute"], attribute=["fast-search"]),
-          ]),
+    Field(
+        name="address",
+        type="address",
+        struct_fields=[
+            StructField(name="city", indexing=["attribute"], attribute=["fast-search"]),
+        ],
+    ),
 )
 ```
 
@@ -341,8 +347,12 @@ Component(
     id="e5",
     type="hugging-face-embedder",
     parameters=[
-        Parameter("transformer-model", args={"url": "https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"}),
-        Parameter("tokenizer-model", args={"url": "https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json"}),
+        Parameter(
+            "transformer-model", args={"url": "https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"}
+        ),
+        Parameter(
+            "tokenizer-model", args={"url": "https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json"}
+        ),
     ],
 )
 ```
@@ -373,9 +383,11 @@ QueryProfileType(fields: List[QueryTypeField] = None)
 Example:
 
 ```python
-QueryProfileType(fields=[
-    QueryTypeField(name="ranking.features.query(q)", type="tensor<float>(x[384])"),
-])
+QueryProfileType(
+    fields=[
+        QueryTypeField(name="ranking.features.query(q)", type="tensor<float>(x[384])"),
+    ]
+)
 ```
 
 ---
