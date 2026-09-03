@@ -7,7 +7,7 @@
     "name": "Vespa.ai"
   },
   "homepage": "https://docs.vespa.ai",
-  "repository": "https://github.com/vespaai-playground/skills",
+  "repository": "https://github.com/vespa-engine/skills",
   "license": "Apache-2.0",
   "keywords": [
     "vespa",

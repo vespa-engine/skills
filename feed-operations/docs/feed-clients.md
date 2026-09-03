@@ -392,13 +392,14 @@ This is not a transient error. The document state did not match the condition. R
 import time
 import requests
 
+
 def feed_with_retry(url, doc_json, max_retries=5):
     for attempt in range(max_retries):
         resp = requests.post(url, json=doc_json)
         if resp.status_code == 200:
             return resp.json()
         if resp.status_code in (429, 503):
-            delay = min(0.5 * (2 ** attempt), 30)
+            delay = min(0.5 * (2**attempt), 30)
             time.sleep(delay)
             continue
         resp.raise_for_status()

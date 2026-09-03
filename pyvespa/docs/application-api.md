@@ -94,22 +94,22 @@ response = sess.update_data(
 
 ```python
 # Assign
-fields={"title": {"assign": "New Title"}}
+fields = {"title": {"assign": "New Title"}}
 
 # Increment
-fields={"count": {"increment": 1}}
+fields = {"count": {"increment": 1}}
 
 # Add to array
-fields={"tags": {"add": ["new_tag"]}}
+fields = {"tags": {"add": ["new_tag"]}}
 
 # Add to weighted set
-fields={"labels": {"add": {"important": 10}}}
+fields = {"labels": {"add": {"important": 10}}}
 
 # Remove from array
-fields={"tags": {"remove": ["old_tag"]}}
+fields = {"tags": {"remove": ["old_tag"]}}
 
 # Multiple operations
-fields={
+fields = {
     "title": {"assign": "Updated"},
     "count": {"increment": 1},
     "tags": {"add": ["new"]},
@@ -218,7 +218,7 @@ body = {
     "hits": 10,
     "offset": 0,
     "timeout": "5s",
-    "input.query(q)": [0.1, 0.2, ...],   # Tensor input
+    "input.query(q)": [0.1, 0.2, ...],  # Tensor input
     "presentation.summary": "minimal",
 }
 ```
@@ -267,9 +267,9 @@ for slice_ in app.visit(
 ### VespaResponse
 
 ```python
-response.json          # Full response dict
-response.status_code   # HTTP status code
-response.url           # Request URL
+response.json  # Full response dict
+response.status_code  # HTTP status code
+response.url  # Request URL
 response.operation_type  # "feed", "update", "delete", "get"
 response.is_successful()  # True if status_code == 200
 ```
@@ -279,10 +279,10 @@ response.is_successful()  # True if status_code == 200
 Extends `VespaResponse` with:
 
 ```python
-response.hits                        # List[Dict] — hit objects from root.children
+response.hits  # List[Dict] — hit objects from root.children
 response.number_documents_retrieved  # int — totalCount
-response.number_documents_indexed    # int — coverage documents
-response.request_body                # Optional[Dict] — the request sent
+response.number_documents_indexed  # int — coverage documents
+response.request_body  # Optional[Dict] — the request sent
 ```
 
 ### VespaVisitResponse
@@ -290,10 +290,10 @@ response.request_body                # Optional[Dict] — the request sent
 Extends `VespaResponse` with:
 
 ```python
-response.documents                   # List[Dict] — visited documents
+response.documents  # List[Dict] — visited documents
 response.number_documents_retrieved  # int — docs in this response
-response.continuation                # Optional[str] — continuation token
-response.path_id                     # str — visit path identifier
+response.continuation  # Optional[str] — continuation token
+response.path_id  # str — visit path identifier
 ```
 
 ---
@@ -376,28 +376,28 @@ import vespa.querybuilder as qb
 ```python
 f = qb.QueryField("title")
 
-f.contains("word")                    # title contains "word"
-f.contains("word", annotations={...}) # With annotations
-f.matches("regex")                    # title matches "regex"
-f.in_("a", "b", "c")                # title in ("a", "b", "c")
-f.in_range(10, 100)                  # range(title, 10, 100)
-f == "value"                          # title = "value"
-f != "value"                          # title != "value"
-f > 10                                # title > 10
-f >= 10                               # title >= 10
-f < 10                                # title < 10
-f <= 10                               # title <= 10
-f.annotate({"weight": 200})           # Field annotation
+f.contains("word")  # title contains "word"
+f.contains("word", annotations={...})  # With annotations
+f.matches("regex")  # title matches "regex"
+f.in_("a", "b", "c")  # title in ("a", "b", "c")
+f.in_range(10, 100)  # range(title, 10, 100)
+f == "value"  # title = "value"
+f != "value"  # title != "value"
+f > 10  # title > 10
+f >= 10  # title >= 10
+f < 10  # title < 10
+f <= 10  # title <= 10
+f.annotate({"weight": 200})  # Field annotation
 ```
 
 ### Condition Combinators
 
 ```python
-cond1 & cond2                         # AND
-cond1 | cond2                         # OR
-~cond                                 # NOT
-qb.all(c1, c2, c3)                   # AND multiple
-qb.any(c1, c2, c3)                   # OR multiple
+cond1 & cond2  # AND
+cond1 | cond2  # OR
+~cond  # NOT
+qb.all(c1, c2, c3)  # AND multiple
+qb.any(c1, c2, c3)  # OR multiple
 ```
 
 ### Query Construction
@@ -409,11 +409,11 @@ q = q.where(condition)
 q = q.order_by("field", ascending=True)
 q = q.set_limit(10)
 q = q.set_offset(20)
-q = q.set_timeout(500)                # ms
-q = q.param("ranking", "hybrid")      # Add query parameter
+q = q.set_timeout(500)  # ms
+q = q.param("ranking", "hybrid")  # Add query parameter
 q = q.groupby(grouping_expr)
 
-yql_string = str(q)                   # Build YQL
+yql_string = str(q)  # Build YQL
 ```
 
 ### Special Operators
@@ -449,14 +449,8 @@ G.precision(N)
 Example:
 
 ```python
-grouping = G.all(
-    G.group("category"),
-    G.max(10),
-    G.each(G.output(G.count(), G.avg("price")))
-)
-q = qb.select("*").from_("products").where(
-    qb.userQuery()
-).groupby(str(grouping)).param("query", "laptop")
+grouping = G.all(G.group("category"), G.max(10), G.each(G.output(G.count(), G.avg("price"))))
+q = qb.select("*").from_("products").where(qb.userQuery()).groupby(str(grouping)).param("query", "laptop")
 ```
 
 ---
@@ -464,6 +458,6 @@ q = qb.select("*").from_("products").where(
 ## Utility Methods
 
 ```python
-app.wait_for_application_up(max_wait=300)    # Block until healthy
-app.get_application_status()                  # Returns requests.Response or None
+app.wait_for_application_up(max_wait=300)  # Block until healthy
+app.get_application_status()  # Returns requests.Response or None
 ```

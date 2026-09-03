@@ -34,8 +34,14 @@ Requires Python >=3.10, <3.14. Zero native dependencies for querying/feeding; Do
 
 ```python
 from vespa.package import (
-    ApplicationPackage, Schema, Document, Field, FieldSet,
-    RankProfile, HNSW, FirstPhaseRanking,
+    ApplicationPackage,
+    Schema,
+    Document,
+    Field,
+    FieldSet,
+    RankProfile,
+    HNSW,
+    FirstPhaseRanking,
 )
 from vespa.deployment import VespaDocker
 
@@ -43,20 +49,23 @@ from vespa.deployment import VespaDocker
 app_package = ApplicationPackage(name="myapp")
 
 app_package.schema.add_fields(
-    Field(name="title", type="string",
-          indexing=["index", "summary"], index="enable-bm25"),
-    Field(name="body", type="string",
-          indexing=["index", "summary"], index="enable-bm25"),
-    Field(name="embedding", type="tensor<float>(x[384])",
-          indexing=["index", "attribute"],
-          ann=HNSW(distance_metric="angular")),
+    Field(name="title", type="string", indexing=["index", "summary"], index="enable-bm25"),
+    Field(name="body", type="string", indexing=["index", "summary"], index="enable-bm25"),
+    Field(
+        name="embedding",
+        type="tensor<float>(x[384])",
+        indexing=["index", "attribute"],
+        ann=HNSW(distance_metric="angular"),
+    ),
 )
 app_package.schema.add_field_set(FieldSet(name="default", fields=["title", "body"]))
 app_package.schema.add_rank_profile(
-    RankProfile(name="hybrid",
-                inputs=[("query(q)", "tensor<float>(x[384])")],
-                first_phase="bm25(title) + bm25(body) + closeness(field, embedding)",
-                match_features=["bm25(title)", "bm25(body)", "closeness(field, embedding)"]),
+    RankProfile(
+        name="hybrid",
+        inputs=[("query(q)", "tensor<float>(x[384])")],
+        first_phase="bm25(title) + bm25(body) + closeness(field, embedding)",
+        match_features=["bm25(title)", "bm25(body)", "closeness(field, embedding)"],
+    ),
 )
 
 # 2. Deploy locally
@@ -72,12 +81,14 @@ app.feed_data_point(
 
 # 4. Query
 with app.syncio() as sess:
-    response = sess.query(body={
-        "yql": "select * from sources * where userQuery() or ({targetHits:10}nearestNeighbor(embedding, q))",
-        "query": "serving engine",
-        "ranking": "hybrid",
-        "input.query(q)": [0.1] * 384,
-    })
+    response = sess.query(
+        body={
+            "yql": "select * from sources * where userQuery() or ({targetHits:10}nearestNeighbor(embedding, q))",
+            "query": "serving engine",
+            "ranking": "hybrid",
+            "input.query(q)": [0.1] * 384,
+        }
+    )
     for hit in response.hits:
         print(hit["fields"]["title"], hit["relevance"])
 ```
@@ -157,19 +168,23 @@ Field(name="title", type="string", indexing=["index", "summary"], index="enable-
 Field(name="price", type="float", indexing=["attribute", "summary"])
 
 # Fast-search attribute
-Field(name="category", type="string", indexing=["attribute", "summary"],
-      attribute=["fast-search"])
+Field(name="category", type="string", indexing=["attribute", "summary"], attribute=["fast-search"])
 
 # Tensor with HNSW
-Field(name="embedding", type="tensor<float>(x[384])",
-      indexing=["index", "attribute"],
-      ann=HNSW(distance_metric="angular", max_links_per_node=16,
-               neighbors_to_explore_at_insert=200))
+Field(
+    name="embedding",
+    type="tensor<float>(x[384])",
+    indexing=["index", "attribute"],
+    ann=HNSW(distance_metric="angular", max_links_per_node=16, neighbors_to_explore_at_insert=200),
+)
 
 # Embedder integration (multiline indexing)
-Field(name="embedding", type="tensor<float>(x[384])",
-      indexing=("input title . \" \" . input body | embed e5 | index | attribute",),
-      ann=HNSW(distance_metric="angular"))
+Field(
+    name="embedding",
+    type="tensor<float>(x[384])",
+    indexing=('input title . " " . input body | embed e5 | index | attribute',),
+    ann=HNSW(distance_metric="angular"),
+)
 
 # Array field
 Field(name="tags", type="array<string>", indexing=["attribute", "summary"])
@@ -218,8 +233,11 @@ RankProfile(
 
 ```python
 from vespa.package import (
-    RankProfile, FirstPhaseRanking, SecondPhaseRanking,
-    GlobalPhaseRanking, Function,
+    RankProfile,
+    FirstPhaseRanking,
+    SecondPhaseRanking,
+    GlobalPhaseRanking,
+    Function,
 )
 
 RankProfile(
@@ -264,9 +282,11 @@ with app.syncio() as sess:
 ```python
 docs = [{"id": str(i), "fields": {"title": f"Doc {i}"}} for i in range(10000)]
 
+
 def callback(response, doc_id):
     if not response.is_successful():
         print(f"Failed: {doc_id} — {response.status_code}")
+
 
 # Sync (thread pool)
 app.feed_iterable(docs, schema="myschema", callback=callback, max_workers=8)
@@ -282,8 +302,7 @@ app.feed_async_iterable(docs, schema="myschema", callback=callback, max_workers=
 ```python
 with app.syncio() as sess:
     # Partial update
-    sess.update_data(schema="myschema", data_id="doc-1",
-                     fields={"count": {"increment": 1}}, create=True)
+    sess.update_data(schema="myschema", data_id="doc-1", fields={"count": {"increment": 1}}, create=True)
 
     # Delete
     sess.delete_data(schema="myschema", data_id="doc-1")
@@ -301,13 +320,15 @@ app.feed_iterable(ids, schema="myschema", operation_type="delete")
 
 ```python
 with app.syncio() as sess:
-    response = sess.query(body={
-        "yql": "select * from sources * where title contains 'vespa'",
-        "ranking": "bm25",
-        "hits": 10,
-    })
-    print(response.hits)                        # List of hit dicts
-    print(response.number_documents_retrieved)   # Total matches
+    response = sess.query(
+        body={
+            "yql": "select * from sources * where title contains 'vespa'",
+            "ranking": "bm25",
+            "hits": 10,
+        }
+    )
+    print(response.hits)  # List of hit dicts
+    print(response.number_documents_retrieved)  # Total matches
 ```
 
 For the pyvespa Query Builder DSL (`vespa.querybuilder`), batch queries (`app.query_many`), grouping DSL, and document visiting (`app.visit`), load `docs/query-builder-dsl.md`.
